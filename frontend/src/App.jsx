@@ -7,7 +7,8 @@ import PublicLayout from "./layouts/PublicLayout";
 import PrivateLayout from "./layouts/PrivateLayout";
 import Signup from "./pages/Signup";
 import ProtectedRoute from "./utils/ProtectedRoute"; // ✅ new import
-import Invoice from "./pages/Invoice";
+import Sales from "./pages/Sales";
+import CreateOrder from "./pages/CreateOrder";
 
 export default function App() {
   const [darkMode, setDarkMode] = useState(false);
@@ -36,7 +37,9 @@ export default function App() {
               >
                 <Route path="/dashboard" element={<Dashboard />} />
                 <Route path="/items" element={<Items />} />
-                <Route path="/invoice" element={<Invoice />} />
+                <Route path="/sales" element={<Sales />} />
+                <Route path="/create-order" element={<CreateOrder />} />
+                 <Route path="/create-order/:id" element={<CreateOrder />} />
                 
               </Route>
             </Route>

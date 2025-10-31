@@ -16,7 +16,7 @@ export default function Sidebar() {
     { name: "Dashboard", icon: <FaTachometerAlt />, path: "/dashboard" },
     { name: "Items", icon: <FaBoxOpen />, path: "/items" },
     { name: "Sales", icon: <FaShoppingCart />, path: "/sales" },
-    { name: "Invoice", icon: <FaFileInvoice />, path: "/invoice" },
+    // { name: "Invoice", icon: <FaFileInvoice />, path: "/invoice" },
     { name: "Reports", icon: <FaChartPie />, path: "/reports" },
     { name: "Suppliers", icon: <FaUsers />, path: "/suppliers" },
   ];

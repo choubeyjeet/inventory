@@ -1,6 +1,6 @@
 import React from 'react'
 
-export default function Invoice() {
+export default function Sales() {
   return (
     <div className="relative flex flex-col transition-all duration-300">
      

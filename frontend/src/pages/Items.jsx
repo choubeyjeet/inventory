@@ -149,6 +149,7 @@ export default function ItemsPage() {
                 <th className="px-4 py-3 whitespace-nowrap">Model No</th>
                 <th className="px-4 py-3 whitespace-nowrap">Category</th>
                 <th className="px-4 py-3 whitespace-nowrap">Price</th>
+                 <th className="px-4 py-3 whitespace-nowrap">GST%</th>
                 <th className="px-4 py-3 whitespace-nowrap">Stock</th>
                 <th className="px-4 py-3 whitespace-nowrap text-center">Actions</th>
               </tr>
@@ -164,6 +165,7 @@ export default function ItemsPage() {
                     <td className="px-4 py-2">{item.modelNo || "-"}</td>
                     <td className="px-4 py-2">{item.category}</td>
                     <td className="px-4 py-2">{item.price}</td>
+                     <td className="px-4 py-2">{item.gst}</td>
                     <td className="px-4 py-2">{item.stock}</td>
                     <td className="px-4 py-2 text-center space-x-2">
                       <button
