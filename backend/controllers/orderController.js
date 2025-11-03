@@ -40,11 +40,11 @@ export const createOrder = async (req, res) => {
     });
 
     // 📄 Generate PDF in-memory (no file saved)
-    const pdfBuffer = await generateInvoicePDF(order);
+    const htmlContent = await generateInvoiceHTML(order);
 
     // 📧 Send email with PDF
     if (customer?.email) {
-      await sendOrderEmail(customer, order, pdfBuffer);
+      await sendOrderEmail(customer.email, order, htmlContent);
     }
 
     res.status(201).json({
@@ -57,195 +57,354 @@ export const createOrder = async (req, res) => {
   }
 };
 
+export const generateInvoiceHTML = (order) => {
+  const customer = order.customer || {};
+  const delivery = order.delivery || {};
+  const items = order.items || [];
 
+  const invoiceDate = new Date(order.createdAt || Date.now()).toLocaleDateString();
+  const invoiceNo = order._id || "N/A";
+  const currency = "₹";
 
-export const generateInvoicePDF = async (order) => {
-  return new Promise((resolve, reject) => {
-    try {
-      const doc = new PDFDocument({ margin: 40 });
-      const stream = new streamBuffers.WritableStreamBuffer({
-        initialSize: 1024 * 1024, // 1MB
-        incrementAmount: 512 * 1024, // Grow by 512KB chunks
-      });
+  const rowsHtml = items.map((item, idx) => {
+    const amount = (item.totalWithGst ?? (item.price * item.quantity)).toFixed(2);
+    return `
+      <tr>
+        <td style="padding:8px;text-align:center;border:1px solid #e6e6e6">${idx + 1}</td>
+        <td style="padding:8px;border:1px solid #e6e6e6">${escapeHtml(item.name)}</td>
+        <td style="padding:8px;text-align:center;border:1px solid #e6e6e6">${escapeHtml(item.model || "-")}</td>
+        <td style="padding:8px;text-align:center;border:1px solid #e6e6e6">${item.quantity}</td>
+        <td style="padding:8px;text-align:right;border:1px solid #e6e6e6">${currency}${Number(item.price).toFixed(2)}</td>
+        <td style="padding:8px;text-align:center;border:1px solid #e6e6e6">${item.gstPercent ?? 0}%</td>
+        <td style="padding:8px;text-align:right;border:1px solid #e6e6e6">${currency}${amount}</td>
+      </tr>
+    `;
+  }).join("");
 
-      // Pipe PDF data into the memory buffer
-      doc.pipe(stream);
+  const subtotal = (order.subtotal ?? items.reduce((s,i)=> s + (i.price * i.quantity || 0), 0)).toFixed(2);
+  const totalGST = (order.totalGST ?? 0).toFixed(2);
+  const discount = (order.discount ?? 0).toFixed(2);
+  const grandTotal = (order.totalAmount ?? (Number(subtotal) + Number(totalGST) - Number(discount))).toFixed(2);
 
-      const primaryColor = "#f02828";
-      const textColor = "#000000";
+  return `
+  <!doctype html>
+  <html>
+  <head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width,initial-scale=1"/>
+    <title>Invoice ${invoiceNo}</title>
+    <style>
+      /* Basic inline-friendly styles */
+      body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial; color:#222; margin:0;padding:0; }
+      .container { max-width:800px; margin:20px auto; padding:20px; }
+      .header { display:flex; justify-content:space-between; align-items:flex-start; }
+      .company { color:#f02828; font-weight:700; font-size:22px; }
+      .muted { color:#666; font-size:13px; }
+      .section { margin-top:18px; display:flex; justify-content:space-between; gap:20px; }
+      .card { padding:12px; border:1px solid #eee; border-radius:6px; background:#fff; }
+      table { width:100%; border-collapse:collapse; margin-top:12px; }
+      th { padding:10px; background:#f02828; color:white; text-align:left; font-weight:600; }
+      td { padding:8px; vertical-align:top; }
+      .right { text-align:right; }
+      .center { text-align:center; }
+      .totals { margin-top:12px; width:100%; display:flex; justify-content:flex-end; }
+      .totals .box { width:320px; }
+      .small { font-size:12px; color:#444; }
+      @media print { .container { margin:0; padding:0; } }
+    </style>
+  </head>
+  <body>
+    <div class="container" style="background:#fafafa;">
+      <div class="header">
+        <div>
+          <div class="company">Kihaan Enterprises</div>
+          <div class="muted">Prem Complex, 27 B, Haridwar Rd, Dehradun, Uttarakhand 248001</div>
+          <div class="muted">Phone: 8447594486</div>
+          <div class="muted">GSTIN: 05ATTPN0666K1Z5 | PAN: 05ATTPN0666K1Z5</div>
+        </div>
 
-      // ========== HEADER ==========
-      const leftX = 40;
-      const rightX = 330;
-      const topY = 40;
+        <div style="text-align:right">
+          <div style="font-weight:700;font-size:14px">TAX INVOICE</div>
+          <div class="small">Invoice No: <strong>${escapeHtml(invoiceNo)}</strong></div>
+          <div class="small">Invoice Date: ${escapeHtml(invoiceDate)}</div>
+          <div class="small">Email: choubeyjeet2580@gmail.com</div>
+          <div class="small">Website: www.kihaanenterprises.com</div>
+        </div>
+      </div>
 
-      doc.fillColor(primaryColor).font("Helvetica-Bold").fontSize(20).text("Kihaan Enterprises", leftX, topY);
+      <div class="section">
+        <div class="card" style="flex:1">
+          <div style="font-weight:700">BILL TO</div>
+          <div class="small">${escapeHtml(customer.name || "N/A")}</div>
+          <div class="muted">${escapeHtml(customer.email || "N/A")}</div>
+          <div class="muted">${escapeHtml(customer.address1 || "")}</div>
+          <div class="muted">${escapeHtml(`${customer.city || ""} ${customer.state || ""}`)}</div>
+        </div>
 
-      doc
-        .fillColor(textColor)
-        .font("Helvetica")
-        .fontSize(10)
-        .text("Prem Complex, 27 B, Haridwar Rd,", leftX, topY + 25)
-        .text("Dehradun, Uttarakhand 248001", leftX)
-        .text("Phone: 8447594486", leftX)
-        .text("GSTIN: 05ATTPN0666K1Z5", leftX)
-        .text("PAN: 05ATTPN0666K1Z5", leftX);
+        <div class="card" style="flex:1">
+          <div style="font-weight:700">SHIP TO</div>
+          <div class="small">${escapeHtml(delivery.address1 || "N/A")}</div>
+          <div class="muted">${escapeHtml(delivery.address2 || "")}</div>
+          <div class="muted">${escapeHtml(delivery.city || "")}</div>
+          <div class="muted">${escapeHtml(`${delivery.state || ""} ${delivery.pincode || ""}`)}</div>
+        </div>
+      </div>
 
-      doc.font("Helvetica-Bold").fontSize(12).text("TAX INVOICE", rightX, topY);
-      doc
-        .font("Helvetica")
-        .fontSize(10)
-        .text(`Invoice No: ${order._id}`, rightX)
-        .text(`Invoice Date: ${new Date(order.createdAt).toLocaleDateString()}`, rightX)
-        .text(`Email: choubeyjeet2580@gmail.com`, rightX)
-        .text(`Website: www.kihaanenterprises.com`, rightX);
+      <div style="margin-top:16px" class="card">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:40px">S.No</th>
+              <th>Item</th>
+              <th style="width:90px">HSN No.</th>
+              <th style="width:60px">Qty</th>
+              <th style="width:90px">Rate</th>
+              <th style="width:70px">Tax%</th>
+              <th style="width:100px" class="right">Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rowsHtml}
+          </tbody>
+        </table>
+      </div>
 
-      doc.moveTo(40, 130).lineTo(550, 130).stroke();
+      <div class="totals">
+        <div class="box card">
+          <div style="display:flex;justify-content:space-between;padding:6px 0">
+            <div class="small">Subtotal</div>
+            <div class="small right">${currency}${subtotal}</div>
+          </div>
+          <div style="display:flex;justify-content:space-between;padding:6px 0">
+            <div class="small">Total GST</div>
+            <div class="small right">${currency}${totalGST}</div>
+          </div>
+          <div style="display:flex;justify-content:space-between;padding:6px 0">
+            <div class="small">Discount</div>
+            <div class="small right">-${currency}${discount}</div>
+          </div>
+          <div style="display:flex;justify-content:space-between;padding:8px 0;border-top:1px dashed #eee">
+            <div style="font-weight:700">Grand Total</div>
+            <div style="font-weight:700" class="right">${currency}${grandTotal}</div>
+          </div>
+        </div>
+      </div>
 
-      // ========== BILL TO / SHIP TO ==========
-      const billToX = 40;
-      const shipToX = 330;
-      const sectionY = 140;
+      <div style="margin-top:20px;display:flex;gap:20px">
+        <div style="flex:1" class="card">
+          <div style="font-weight:700">Terms & Conditions</div>
+          <div class="small">1. Customer will pay the GST</div>
+          <div class="small">2. Customer will pay the Delivery charges</div>
+          <div class="small">3. Pay due amount within 15 days</div>
+        </div>
 
-      doc.font("Helvetica-Bold").fontSize(12).text("BILL TO", billToX, sectionY);
-      doc
-        .font("Helvetica")
-        .fontSize(10)
-        .text(order.customer?.name || "N/A", billToX, sectionY + 15)
-        .text(order.customer?.email || "N/A", billToX)
-        .text(order.customer?.address1 || "", billToX)
-        .text(`${order.customer?.city || ""}, ${order.customer?.state || ""}`, billToX);
+        <div style="width:300px" class="card">
+          <div style="font-weight:700">Bank Details</div>
+          <div class="small">Account Holder: Kihaan Enterprises</div>
+          <div class="small">Account No: 123456789</div>
+          <div class="small">Bank: SBI, Branch: Dehradun</div>
+          <div class="small">IFSC: SBIN0004567</div>
+          <div class="small">UPI: kihaan@upi</div>
+        </div>
+      </div>
 
-      doc.font("Helvetica-Bold").fontSize(12).text("SHIP TO", shipToX, sectionY);
-      doc
-        .font("Helvetica")
-        .fontSize(10)
-        .text(order.delivery?.address1 || "N/A", shipToX, sectionY + 15)
-        .text(order.delivery?.address2 || "N/A", shipToX)
-        .text(order.delivery?.city || "", shipToX)
-        .text(`${order.delivery?.state || ""}, ${order.delivery?.pincode || ""}`, shipToX);
-
-      doc.moveTo(40, 220).lineTo(550, 220).stroke();
-
-      // ========== ITEMS TABLE ==========
-      const tableTop = 230;
-      const columnWidths = [30, 120, 70, 60, 60, 60, 80];
-      const headers = ["S.No", "Item", "HSN No.", "Qty", "Rate", "Tax%", "Amount"];
-
-      doc.rect(40, tableTop, 510, 20).fill(primaryColor).fillColor("white");
-      doc.font("Helvetica").fontSize(10);
-
-      let x = 40;
-      headers.forEach((h, i) => {
-        doc.text(h, x + 5, tableTop + 5, { width: columnWidths[i], align: "left" });
-        x += columnWidths[i];
-      });
-      doc.fillColor(textColor);
-
-      let y = tableTop + 25;
-      order.items.forEach((item, idx) => {
-        const row = [
-          idx + 1,
-          item.name,
-          item.model || "-",
-          item.quantity,
-          `₹${item.price.toFixed(2)}`,
-          `${item.gstPercent}%`,
-          `₹${item.totalWithGst.toFixed(2)}`,
-        ];
-
-        let x = 40;
-        row.forEach((r, i) => {
-          doc.text(String(r), x + 5, y, { width: columnWidths[i], align: "left" });
-          x += columnWidths[i];
-        });
-        y += 20;
-      });
-
-      doc.moveTo(40, y + 10).lineTo(550, y + 10).stroke();
-
-      // ========== TOTALS ==========
-      y += 15;
-      doc.font("Helvetica-Bold").fontSize(10);
-      doc.text(`Subtotal: ₹${order.subtotal?.toFixed(2) || "0.00"}`, 400, y);
-      y += 15;
-      doc.text(`Total GST: ₹${order.totalGST?.toFixed(2) || "0.00"}`, 400, y);
-      y += 15;
-      doc.text(`Discount: ₹${order.discount?.toFixed(2) || "0.00"}`, 400, y);
-      y += 15;
-      doc.text(`Grand Total: ₹${order.totalAmount?.toFixed(2) || "0.00"}`, 400, y);
-
-      doc.moveTo(40, y + 10).lineTo(550, y + 10).stroke();
-
-      // ========== TERMS & BANK DETAILS ==========
-      y += 30;
-      doc.font("Helvetica-Bold").fontSize(10).text("Terms & Conditions", 40, y);
-      doc.font("Helvetica").fontSize(9);
-      doc.text("1. Customer will pay the GST", 40, y + 15);
-      doc.text("2. Customer will pay the Delivery charges", 40, y + 30);
-      doc.text("3. Pay due amount within 15 days", 40, y + 45);
-
-      const bankY = y;
-      doc.font("Helvetica-Bold").fontSize(10).text("Bank Details", 250, bankY);
-      doc.font("Helvetica").fontSize(9);
-      doc.text("Account Holder: Kihaan Enterprises", 250, bankY + 15);
-      doc.text("Account No: 123456789", 250, bankY + 30);
-      doc.text("Bank: SBI, Branch: Dehradun", 250, bankY + 45);
-      doc.text("IFSC: SBIN0004567", 250, bankY + 60);
-      doc.text("UPI: kihaan@upi", 250, bankY + 75);
-
-      doc.font("Helvetica-Oblique").fontSize(9).text("Authorized Signatory For Kihaan Enterprises", 400, bankY + 95);
-
-      doc.moveDown(3);
-      doc.font("Helvetica-Oblique").fontSize(9).fillColor("gray").text("Thank you for your business!", { align: "center" });
-
-      // ✅ Important: close document properly
-      doc.end();
-
-      // ✅ Wait for PDF data to fully flush before resolving
-      stream.on("finish", () => {
-        try {
-          const buffer = stream.getContents();
-          resolve(buffer);
-        } catch (err) {
-          reject(err);
-        }
-      });
-
-      // ✅ Catch any stream error (Render-safe)
-      stream.on("error", (err) => reject(err));
-    } catch (err) {
-      reject(err);
-    }
-  });
+      <div style="text-align:center;margin-top:18px;color:#888;font-size:13px">Thank you for your business!</div>
+    </div>
+  </body>
+  </html>
+  `;
 };
 
+/* small helper to escape user-provided text for safe HTML insertion */
+function escapeHtml(str) {
+  if (!str && str !== 0) return "";
+  return String(str)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
 
-const sendOrderEmail = async (customer, order, pdfBuffer) => {
+
+// export const generateInvoicePDF = async (order) => {
+//   return new Promise((resolve, reject) => {
+//     try {
+//       const doc = new PDFDocument({ margin: 40 });
+//       const stream = new streamBuffers.WritableStreamBuffer({
+//         initialSize: 1024 * 1024, // 1MB
+//         incrementAmount: 512 * 1024, // Grow by 512KB chunks
+//       });
+
+//       // Pipe PDF data into the memory buffer
+//       doc.pipe(stream);
+
+//       const primaryColor = "#f02828";
+//       const textColor = "#000000";
+
+//       // ========== HEADER ==========
+//       const leftX = 40;
+//       const rightX = 330;
+//       const topY = 40;
+
+//       doc.fillColor(primaryColor).font("Helvetica-Bold").fontSize(20).text("Kihaan Enterprises", leftX, topY);
+
+//       doc
+//         .fillColor(textColor)
+//         .font("Helvetica")
+//         .fontSize(10)
+//         .text("Prem Complex, 27 B, Haridwar Rd,", leftX, topY + 25)
+//         .text("Dehradun, Uttarakhand 248001", leftX)
+//         .text("Phone: 8447594486", leftX)
+//         .text("GSTIN: 05ATTPN0666K1Z5", leftX)
+//         .text("PAN: 05ATTPN0666K1Z5", leftX);
+
+//       doc.font("Helvetica-Bold").fontSize(12).text("TAX INVOICE", rightX, topY);
+//       doc
+//         .font("Helvetica")
+//         .fontSize(10)
+//         .text(`Invoice No: ${order._id}`, rightX)
+//         .text(`Invoice Date: ${new Date(order.createdAt).toLocaleDateString()}`, rightX)
+//         .text(`Email: choubeyjeet2580@gmail.com`, rightX)
+//         .text(`Website: www.kihaanenterprises.com`, rightX);
+
+//       doc.moveTo(40, 130).lineTo(550, 130).stroke();
+
+//       // ========== BILL TO / SHIP TO ==========
+//       const billToX = 40;
+//       const shipToX = 330;
+//       const sectionY = 140;
+
+//       doc.font("Helvetica-Bold").fontSize(12).text("BILL TO", billToX, sectionY);
+//       doc
+//         .font("Helvetica")
+//         .fontSize(10)
+//         .text(order.customer?.name || "N/A", billToX, sectionY + 15)
+//         .text(order.customer?.email || "N/A", billToX)
+//         .text(order.customer?.address1 || "", billToX)
+//         .text(`${order.customer?.city || ""}, ${order.customer?.state || ""}`, billToX);
+
+//       doc.font("Helvetica-Bold").fontSize(12).text("SHIP TO", shipToX, sectionY);
+//       doc
+//         .font("Helvetica")
+//         .fontSize(10)
+//         .text(order.delivery?.address1 || "N/A", shipToX, sectionY + 15)
+//         .text(order.delivery?.address2 || "N/A", shipToX)
+//         .text(order.delivery?.city || "", shipToX)
+//         .text(`${order.delivery?.state || ""}, ${order.delivery?.pincode || ""}`, shipToX);
+
+//       doc.moveTo(40, 220).lineTo(550, 220).stroke();
+
+//       // ========== ITEMS TABLE ==========
+//       const tableTop = 230;
+//       const columnWidths = [30, 120, 70, 60, 60, 60, 80];
+//       const headers = ["S.No", "Item", "HSN No.", "Qty", "Rate", "Tax%", "Amount"];
+
+//       doc.rect(40, tableTop, 510, 20).fill(primaryColor).fillColor("white");
+//       doc.font("Helvetica").fontSize(10);
+
+//       let x = 40;
+//       headers.forEach((h, i) => {
+//         doc.text(h, x + 5, tableTop + 5, { width: columnWidths[i], align: "left" });
+//         x += columnWidths[i];
+//       });
+//       doc.fillColor(textColor);
+
+//       let y = tableTop + 25;
+//       order.items.forEach((item, idx) => {
+//         const row = [
+//           idx + 1,
+//           item.name,
+//           item.model || "-",
+//           item.quantity,
+//           `₹${item.price.toFixed(2)}`,
+//           `${item.gstPercent}%`,
+//           `₹${item.totalWithGst.toFixed(2)}`,
+//         ];
+
+//         let x = 40;
+//         row.forEach((r, i) => {
+//           doc.text(String(r), x + 5, y, { width: columnWidths[i], align: "left" });
+//           x += columnWidths[i];
+//         });
+//         y += 20;
+//       });
+
+//       doc.moveTo(40, y + 10).lineTo(550, y + 10).stroke();
+
+//       // ========== TOTALS ==========
+//       y += 15;
+//       doc.font("Helvetica-Bold").fontSize(10);
+//       doc.text(`Subtotal: ₹${order.subtotal?.toFixed(2) || "0.00"}`, 400, y);
+//       y += 15;
+//       doc.text(`Total GST: ₹${order.totalGST?.toFixed(2) || "0.00"}`, 400, y);
+//       y += 15;
+//       doc.text(`Discount: ₹${order.discount?.toFixed(2) || "0.00"}`, 400, y);
+//       y += 15;
+//       doc.text(`Grand Total: ₹${order.totalAmount?.toFixed(2) || "0.00"}`, 400, y);
+
+//       doc.moveTo(40, y + 10).lineTo(550, y + 10).stroke();
+
+//       // ========== TERMS & BANK DETAILS ==========
+//       y += 30;
+//       doc.font("Helvetica-Bold").fontSize(10).text("Terms & Conditions", 40, y);
+//       doc.font("Helvetica").fontSize(9);
+//       doc.text("1. Customer will pay the GST", 40, y + 15);
+//       doc.text("2. Customer will pay the Delivery charges", 40, y + 30);
+//       doc.text("3. Pay due amount within 15 days", 40, y + 45);
+
+//       const bankY = y;
+//       doc.font("Helvetica-Bold").fontSize(10).text("Bank Details", 250, bankY);
+//       doc.font("Helvetica").fontSize(9);
+//       doc.text("Account Holder: Kihaan Enterprises", 250, bankY + 15);
+//       doc.text("Account No: 123456789", 250, bankY + 30);
+//       doc.text("Bank: SBI, Branch: Dehradun", 250, bankY + 45);
+//       doc.text("IFSC: SBIN0004567", 250, bankY + 60);
+//       doc.text("UPI: kihaan@upi", 250, bankY + 75);
+
+//       doc.font("Helvetica-Oblique").fontSize(9).text("Authorized Signatory For Kihaan Enterprises", 400, bankY + 95);
+
+//       doc.moveDown(3);
+//       doc.font("Helvetica-Oblique").fontSize(9).fillColor("gray").text("Thank you for your business!", { align: "center" });
+
+//       // ✅ Important: close document properly
+//       doc.end();
+
+//       // ✅ Wait for PDF data to fully flush before resolving
+//       stream.on("finish", () => {
+//         try {
+//           const buffer = stream.getContents();
+//           resolve(buffer);
+//         } catch (err) {
+//           reject(err);
+//         }
+//       });
+
+//       // ✅ Catch any stream error (Render-safe)
+//       stream.on("error", (err) => reject(err));
+//     } catch (err) {
+//       reject(err);
+//     }
+//   });
+// };
+
+
+export const sendOrderEmail = async (to, order, htmlContent) => {
   const transporter = nodemailer.createTransport({
-    service: "gmail",
+    service: "gmail", // or your SMTP provider
     auth: {
-      user: process.env.EMAIL_USER, // your Gmail
-      pass: process.env.EMAIL_PASS, // app password
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASS,
     },
   });
-
-  const mailOptions = {
-    from: `"Kihaan Enterprises" <${process.env.EMAIL_USER}>`,
-    to: customer.email,
-    subject: `Order Confirmation - Invoice #${order._id}`,
-    text: `Hello ${customer.name},\n\nThank you for your order!\nYour total is ₹${order.totalAmount}.\n\nPlease find your invoice attached.`,
-    attachments: [
-      {
-        filename: `Invoice_${order._id}.pdf`,
-        content: pdfBuffer,
-      },
-    ],
-  };
-
-  await transporter.sendMail(mailOptions);
+const subject = `Order Confirmation - Invoice ${order._id}`
+  await transporter.sendMail({
+    from: `"Inventory System" <${process.env.EMAIL_USER}>`,
+    to,
+    subject,
+    html: htmlContent,
+  });
 };
-
 
 
 
