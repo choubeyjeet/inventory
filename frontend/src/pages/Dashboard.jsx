@@ -1,10 +1,13 @@
-// src/pages/Dashboard.jsx
-import React from "react";
+import React, { useEffect, useState } from "react";
+import axiosInstance from "../utils/axiosInstance";
+import { FaMoneyBill1Wave } from "react-icons/fa6";
 import {
   FaBoxOpen,
   FaDollarSign,
   FaUsers,
   FaShoppingCart,
+  FaExclamationTriangle,
+  FaClipboardList,
 } from "react-icons/fa";
 import {
   LineChart,
@@ -17,67 +20,139 @@ import {
   Pie,
   Cell,
   Legend,
+  ComposedChart,
+  CartesianGrid,
+  Bar,
 } from "recharts";
 
 export default function Dashboard() {
-  const stats = [
+  const [stats, setStats] = useState(null);
+  const [salesData, setSalesData] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [year, setYear] = useState(new Date().getFullYear());
+  const [month, setMonth] = useState(""); // optional month filter
+  const [category, setCategory] = useState([]);
+
+  const pieColors = ["#3B82F6", "#10B981", "#F59E0B", "#8B5CF6"];
+
+  useEffect(() => {
+    const fetchDashboard = async () => {
+      try {
+        const res = await axiosInstance.get("/dashboard/stats");
+        setStats(res.data);
+      } catch (err) {
+        console.error("Failed to load dashboard:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    const fetchSales = async () => {
+      try {
+        let url = `/dashboard/sales?year=${year}`;
+        if (month) url += `&month=${month}`;
+        const res = await axiosInstance.get(url);
+        setSalesData(res.data);
+      } catch (err) {
+        console.error("Failed to load sales analytics:", err);
+      }
+    };
+
+
+
+   
+
+
+    fetchDashboard();
+    fetchSales();
+   
+  }, [year, month]);
+
+  const fetchCategorySales = async () => {
+      try {
+        let url = `/dashboard/product-category`;
+     
+        const res = await axiosInstance.get(url);
+        setCategory(res.data);
+      } catch (err) {
+        console.error("Failed to load sales analytics:", err);
+      }
+    };
+useEffect(()=>{
+fetchCategorySales()
+}, [])
+
+  if (loading)
+    return (
+      <div className="flex items-center justify-center h-screen text-xl text-gray-600">
+        Loading Dashboard...
+      </div>
+    );
+
+  if (!stats)
+    return (
+      <div className="flex items-center justify-center h-screen text-xl text-red-600">
+        Failed to load dashboard data
+      </div>
+    );
+
+  const cards = [
     {
       label: "Total Products",
-      value: 248,
+      value: stats.totalProducts,
       icon: <FaBoxOpen />,
       color: "bg-blue-500",
     },
     {
       label: "Revenue",
-      value: "$12,430",
+      value: `₹${stats.totalRevenue.toLocaleString()}`,
       icon: <FaDollarSign />,
       color: "bg-green-500",
     },
     {
       label: "Customers",
-      value: 893,
+      value: stats.totalCustomers || 0,
       icon: <FaUsers />,
       color: "bg-yellow-500",
     },
     {
       label: "Orders",
-      value: 124,
+      value: stats.totalOrders,
       icon: <FaShoppingCart />,
       color: "bg-purple-500",
     },
   ];
 
-  const salesData = [
-    { month: "Jan", sales: 3000 },
-    { month: "Feb", sales: 4200 },
-    { month: "Mar", sales: 3900 },
-    { month: "Apr", sales: 5800 },
-    { month: "May", sales: 6700 },
-    { month: "Jun", sales: 6100 },
+  const months = [
+    { name: "All Months", value: "" },
+    { name: "January", value: 1 },
+    { name: "February", value: 2 },
+    { name: "March", value: 3 },
+    { name: "April", value: 4 },
+    { name: "May", value: 5 },
+    { name: "June", value: 6 },
+    { name: "July", value: 7 },
+    { name: "August", value: 8 },
+    { name: "September", value: 9 },
+    { name: "October", value: 10 },
+    { name: "November", value: 11 },
+    { name: "December", value: 12 },
   ];
 
-  const categoryData = [
-    { name: "Electronics", value: 400 },
-    { name: "Clothing", value: 300 },
-    { name: "Groceries", value: 200 },
-    { name: "Furniture", value: 100 },
-  ];
-
-  const pieColors = ["#3B82F6", "#10B981", "#F59E0B", "#8B5CF6"];
+  const years = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i);
 
   return (
-    <div className="p-6 lg:p-8 bg-neutral-lightBg dark:bg-neutral-darkBg min-h-screen transition-colors duration-300">
-      {/* Header */}
-      <h1 className="text-2xl md:text-3xl font-bold text-gray-800 dark:text-gray-100 mb-8">
+    <div className="p-6 lg:p-8 bg-gray-50 dark:bg-gray-950 min-h-screen transition-colors duration-300">
+      <h1 className="text-3xl font-bold text-gray-800 dark:text-gray-100 mb-8">
         Dashboard Overview
       </h1>
 
-      {/* Stats Section */}
+      {/* 🔹 Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6 mb-10">
-        {stats.map((stat) => (
+        {cards.map((stat) => (
           <div
             key={stat.label}
-            className="bg-white dark:bg-gray-900 shadow-lg rounded-xl p-6 flex items-center justify-between transition transform hover:scale-105"
+            className="bg-white dark:bg-gray-900 shadow-lg rounded-xl p-6 flex items-center justify-between hover:scale-105 transition-transform"
           >
             <div>
               <p className="text-gray-500 dark:text-gray-400">{stat.label}</p>
@@ -92,37 +167,104 @@ export default function Dashboard() {
         ))}
       </div>
 
-      {/* Charts Section */}
+      {/* 🔹 Year / Month Filters */}
+      <div className="flex flex-wrap gap-4 mb-6">
+        <div>
+          <label className="block text-gray-600 dark:text-gray-300 mb-1 font-medium">
+            Select Year
+          </label>
+          <select
+            value={year}
+            onChange={(e) => setYear(e.target.value)}
+            className="border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-100 rounded-md p-2"
+          >
+            {years.map((y) => (
+              <option key={y} value={y}>
+                {y}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="block text-gray-600 dark:text-gray-300 mb-1 font-medium">
+            Select Month
+          </label>
+          <select
+            value={month}
+            onChange={(e) => setMonth(e.target.value)}
+            className="border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-100 rounded-md p-2"
+          >
+            {months.map((m) => (
+              <option key={m.value} value={m.value}>
+                {m.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {/* 🔹 Charts Section */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-10">
-        {/* Sales Trend */}
         <div className="bg-white dark:bg-gray-900 p-6 rounded-xl shadow-md col-span-2">
           <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-4">
-            Monthly Sales Trend
+            {month
+              ? `${months.find((m) => m.value == month)?.name} ${year} Sales`
+              : `Monthly Sales Trend (${year})`}
           </h2>
-          <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={salesData}>
-              <XAxis dataKey="month" stroke="#9CA3AF" />
-              <YAxis stroke="#9CA3AF" />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: "#1F2937",
-                  border: "none",
-                  color: "#fff",
-                }}
-              />
-              <Line
-                type="monotone"
-                dataKey="sales"
-                stroke="#3B82F6"
-                strokeWidth={3}
-                dot={{ r: 5, fill: "#3B82F6" }}
-                activeDot={{ r: 8 }}
-              />
-            </LineChart>
-          </ResponsiveContainer>
+         
+  
+  <ResponsiveContainer width="100%" height={350}>
+    <ComposedChart data={salesData}>
+      <CartesianGrid strokeDasharray="3 3" />
+      <XAxis dataKey="month" />
+      <YAxis
+        yAxisId="left"
+        orientation="left"
+        label={{
+          value: "Sales (₹)",
+          angle: -90,
+          position: "insideLeft",
+        }}
+      />
+      <YAxis
+        yAxisId="right"
+        orientation="right"
+        label={{
+          value: "Orders",
+          angle: 90,
+          position: "insideRight",
+        }}
+      />
+      <Tooltip
+        formatter={(value, name) => {
+          if (name === "Sales (₹)") return [`₹${value.toLocaleString()}`, name];
+          return [value, name];
+        }}
+      />
+      <Legend />
+      <Bar
+        yAxisId="left"
+        dataKey="totalSales"
+        fill="#3B82F6"
+        name="Sales (₹)"
+        barSize={40}
+      />
+      <Line
+        yAxisId="right"
+        type="monotone"
+        dataKey="totalOrders"
+        stroke="#10B981"
+        name="Orders"
+        strokeWidth={3}
+        dot={{ r: 4 }}
+        activeDot={{ r: 6 }}
+      />
+    </ComposedChart>
+  </ResponsiveContainer>
+ 
+
         </div>
 
-        {/* Category Distribution */}
         <div className="bg-white dark:bg-gray-900 p-6 rounded-xl shadow-md">
           <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-4">
             Product Category Distribution
@@ -130,48 +272,124 @@ export default function Dashboard() {
           <ResponsiveContainer width="100%" height={300}>
             <PieChart>
               <Pie
-                data={categoryData}
+                data={category}
                 dataKey="value"
                 nameKey="name"
-                cx="50%"
-                cy="50%"
                 outerRadius={100}
                 label
               >
-                {categoryData.map((_, i) => (
-                  <Cell key={i} fill={pieColors[i % pieColors.length]} />
+                {pieColors.map((color, i) => (
+                  <Cell key={i} fill={color} />
                 ))}
               </Pie>
               <Legend />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: "#1F2937",
-                  border: "none",
-                  color: "#fff",
-                }}
-              />
+              <Tooltip contentStyle={{ backgroundColor: "#1F2937", color: "#fff" }} />
             </PieChart>
           </ResponsiveContainer>
         </div>
       </div>
 
-      {/* Recent Activities */}
-      <div className="bg-white dark:bg-gray-900 p-6 rounded-xl shadow-md">
-        <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-4">
-          Recent Activities
+
+         <div className="bg-white dark:bg-gray-900 p-6 rounded-xl shadow-md mb-10">
+        <h2 className="flex items-center gap-2 text-lg font-semibold text-gray-800 dark:text-gray-100 mb-4">
+       
+          <FaMoneyBill1Wave className="text-yellow-500" /> Month Wise Sale
         </h2>
-        <ul className="space-y-3 text-gray-700 dark:text-gray-300">
-          <li className="border-b border-gray-200 dark:border-gray-800 pb-3">
-            🧾 New order placed by <span className="font-semibold">John Doe</span>
-          </li>
-          <li className="border-b border-gray-200 dark:border-gray-800 pb-3">
-            📦 Product <span className="font-semibold">“Nike Shoes”</span> added to stock
-          </li>
-          <li className="border-b border-gray-200 dark:border-gray-800 pb-3">
-            💵 Payment received from <span className="font-semibold">Sarah Lee</span>
-          </li>
-          <li>🚚 Order #453 shipped successfully</li>
-        </ul>
+        {salesData?.length ? (
+          <table className="w-full border-collapse text-left">
+            <thead className="bg-gray-100 dark:bg-gray-800">
+              <tr>
+                <th className="p-3">#</th>
+                <th className="p-3">Month</th>
+                <th className="p-3">Total Amount</th>
+                <th className="p-3">Total Orders</th>
+              </tr>
+            </thead>
+            <tbody>
+              {salesData?.map((item, idx) => (
+               <tr key={`items_${idx}`} className="border-t border-gray-200 dark:border-gray-800">
+                
+                  <td className="p-3">{idx + 1}</td>
+                  <td className="p-3">{item.month}</td>
+                  <td className="p-3">₹{item.totalSales}</td>
+                  <td className="p-3 text-red-500 font-semibold">{item.totalOrders}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <p className="text-gray-500 dark:text-gray-400">No Data Found.</p>
+        )}
+      </div>
+
+      {/* 🔹 Low Stock Items */}
+      <div className="bg-white dark:bg-gray-900 p-6 rounded-xl shadow-md mb-10">
+        <h2 className="flex items-center gap-2 text-lg font-semibold text-gray-800 dark:text-gray-100 mb-4">
+          <FaExclamationTriangle className="text-yellow-500" /> Low Stock Items
+        </h2>
+        {stats.lowStockItems.length ? (
+          <table className="w-full border-collapse text-left">
+            <thead className="bg-gray-100 dark:bg-gray-800">
+              <tr>
+                <th className="p-3">#</th>
+                <th className="p-3">Name</th>
+                <th className="p-3">Price</th>
+                <th className="p-3">Stock</th>
+              </tr>
+            </thead>
+            <tbody>
+              {stats.lowStockItems.map((item, idx) => (
+                <tr key={item._id} className="border-t border-gray-200 dark:border-gray-800">
+                  <td className="p-3">{idx + 1}</td>
+                  <td className="p-3">{item.name}</td>
+                  <td className="p-3">₹{item.price}</td>
+                  <td className="p-3 text-red-500 font-semibold">{item.stock}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <p className="text-gray-500 dark:text-gray-400">All stocks are healthy ✅</p>
+        )}
+      </div>
+
+      {/* 🔹 Recent Orders */}
+      <div className="bg-white dark:bg-gray-900 p-6 rounded-xl shadow-md">
+        <h2 className="flex items-center gap-2 text-lg font-semibold text-gray-800 dark:text-gray-100 mb-4">
+          <FaClipboardList className="text-blue-500" /> Recent Orders
+        </h2>
+        {stats.recentOrders.length ? (
+          <table className="w-full border-collapse text-left">
+            <thead className="bg-gray-100 dark:bg-gray-800">
+              <tr>
+                <th className="p-3">#</th>
+                <th className="p-3">Customer</th>
+                <th className="p-3">Email</th>
+                <th className="p-3">Amount</th>
+                <th className="p-3">Date</th>
+              </tr>
+            </thead>
+            <tbody>
+              {stats.recentOrders.map((order, idx) => (
+                <tr key={order._id} className="border-t border-gray-200 dark:border-gray-800">
+                  <td className="p-3">{idx + 1}</td>
+                  <td className="p-3">{order.customer?.name || "N/A"}</td>
+                  <td className="p-3 text-blue-500">{order.customer?.email || "N/A"}</td>
+                  <td className="p-3 font-semibold">₹{order.totalAmount.toFixed(2)}</td>
+                  <td className="p-3">
+                    {new Date(order.createdAt).toLocaleDateString("en-IN", {
+                      day: "2-digit",
+                      month: "short",
+                      year: "numeric",
+                    })}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <p className="text-gray-500 dark:text-gray-400">No recent orders found.</p>
+        )}
       </div>
     </div>
   );

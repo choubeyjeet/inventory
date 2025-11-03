@@ -7,6 +7,7 @@ import itemRoutes from "./routes/itemRoutes.js";
 import orderRoutes from "./routes/orderRoutes.js";
 import cookieParser from "cookie-parser";
 import "./cron/lowStockCron.js";
+import dashboardRoutes from "./routes/dashboardRoutes.js";
 
 
 dotenv.config();
@@ -32,7 +33,7 @@ mongoose
 app.use("/api/auth", authRoutes);
 app.use("/api/items", itemRoutes);
 app.use("/api/orders", orderRoutes);
-
+app.use("/api/dashboard", dashboardRoutes);
 // Base route
 app.get("/", (req, res) => res.send("API is running..."));
 
