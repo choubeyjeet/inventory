@@ -218,7 +218,9 @@ setDelivery(response?.data?.delivery)
 }  
 
 useEffect(()=>{
-getOrderByID();
+if(id){
+  getOrderByID();
+}
 }, [id])
 
   return (
