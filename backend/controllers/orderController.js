@@ -57,13 +57,18 @@ export const createOrder = async (req, res) => {
   }
 };
 
-export const generateInvoicePDF = (order) => {
+
+
+export const generateInvoicePDF = async (order) => {
   return new Promise((resolve, reject) => {
     try {
-      // Setup PDF and in-memory buffer
       const doc = new PDFDocument({ margin: 40 });
-      const stream = new streamBuffers.WritableStreamBuffer();
+      const stream = new streamBuffers.WritableStreamBuffer({
+        initialSize: 1024 * 1024, // 1MB
+        incrementAmount: 512 * 1024, // Grow by 512KB chunks
+      });
 
+      // Pipe PDF data into the memory buffer
       doc.pipe(stream);
 
       const primaryColor = "#f02828";
@@ -74,12 +79,7 @@ export const generateInvoicePDF = (order) => {
       const rightX = 330;
       const topY = 40;
 
-      // Company Info (Left)
-      doc
-        .fillColor(primaryColor)
-        .font("Helvetica-Bold")
-        .fontSize(20)
-        .text("Kihaan Enterprises", leftX, topY);
+      doc.fillColor(primaryColor).font("Helvetica-Bold").fontSize(20).text("Kihaan Enterprises", leftX, topY);
 
       doc
         .fillColor(textColor)
@@ -91,19 +91,12 @@ export const generateInvoicePDF = (order) => {
         .text("GSTIN: 05ATTPN0666K1Z5", leftX)
         .text("PAN: 05ATTPN0666K1Z5", leftX);
 
-      // Invoice Info (Right)
-      doc
-        .font("Helvetica-Bold")
-        .fontSize(12)
-        .text("TAX INVOICE", rightX, topY);
+      doc.font("Helvetica-Bold").fontSize(12).text("TAX INVOICE", rightX, topY);
       doc
         .font("Helvetica")
         .fontSize(10)
         .text(`Invoice No: ${order._id}`, rightX)
-        .text(
-          `Invoice Date: ${new Date(order.createdAt).toLocaleDateString()}`,
-          rightX
-        )
+        .text(`Invoice Date: ${new Date(order.createdAt).toLocaleDateString()}`, rightX)
         .text(`Email: choubeyjeet2580@gmail.com`, rightX)
         .text(`Website: www.kihaanenterprises.com`, rightX);
 
@@ -121,10 +114,7 @@ export const generateInvoicePDF = (order) => {
         .text(order.customer?.name || "N/A", billToX, sectionY + 15)
         .text(order.customer?.email || "N/A", billToX)
         .text(order.customer?.address1 || "", billToX)
-        .text(
-          `${order.customer?.city || ""}, ${order.customer?.state || ""}`,
-          billToX
-        );
+        .text(`${order.customer?.city || ""}, ${order.customer?.state || ""}`, billToX);
 
       doc.font("Helvetica-Bold").fontSize(12).text("SHIP TO", shipToX, sectionY);
       doc
@@ -133,10 +123,7 @@ export const generateInvoicePDF = (order) => {
         .text(order.delivery?.address1 || "N/A", shipToX, sectionY + 15)
         .text(order.delivery?.address2 || "N/A", shipToX)
         .text(order.delivery?.city || "", shipToX)
-        .text(
-          `${order.delivery?.state || ""}, ${order.delivery?.pincode || ""}`,
-          shipToX
-        );
+        .text(`${order.delivery?.state || ""}, ${order.delivery?.pincode || ""}`, shipToX);
 
       doc.moveTo(40, 220).lineTo(550, 220).stroke();
 
@@ -150,10 +137,7 @@ export const generateInvoicePDF = (order) => {
 
       let x = 40;
       headers.forEach((h, i) => {
-        doc.text(h, x + 5, tableTop + 5, {
-          width: columnWidths[i],
-          align: "left",
-        });
+        doc.text(h, x + 5, tableTop + 5, { width: columnWidths[i], align: "left" });
         x += columnWidths[i];
       });
       doc.fillColor(textColor);
@@ -210,26 +194,32 @@ export const generateInvoicePDF = (order) => {
       doc.text("IFSC: SBIN0004567", 250, bankY + 60);
       doc.text("UPI: kihaan@upi", 250, bankY + 75);
 
-      doc
-        .font("Helvetica-Oblique")
-        .fontSize(9)
-        .text("Authorized Signatory For Kihaan Enterprises", 400, bankY + 95);
+      doc.font("Helvetica-Oblique").fontSize(9).text("Authorized Signatory For Kihaan Enterprises", 400, bankY + 95);
 
       doc.moveDown(3);
-      doc.font("Helvetica-Oblique").fontSize(9).fillColor("gray");
-      doc.text("Thank you for your business!", { align: "center" });
+      doc.font("Helvetica-Oblique").fontSize(9).fillColor("gray").text("Thank you for your business!", { align: "center" });
 
+      // ✅ Important: close document properly
       doc.end();
 
+      // ✅ Wait for PDF data to fully flush before resolving
       stream.on("finish", () => {
-        const pdfBuffer = stream.getContents();
-        resolve(pdfBuffer);
+        try {
+          const buffer = stream.getContents();
+          resolve(buffer);
+        } catch (err) {
+          reject(err);
+        }
       });
+
+      // ✅ Catch any stream error (Render-safe)
+      stream.on("error", (err) => reject(err));
     } catch (err) {
       reject(err);
     }
   });
 };
+
 
 const sendOrderEmail = async (customer, order, pdfBuffer) => {
   const transporter = nodemailer.createTransport({
@@ -430,7 +420,7 @@ export const downloadAsPDF = async (req, res) => {
   try {
     const { id } = req.params;
     const order = await Order.findById(id);
-    console.log("order", order)
+  
     if (!order) {
       return res.status(404).json({ message: "Order not found" });
     }
@@ -609,5 +599,6 @@ export const downloadAsPDF = async (req, res) => {
     res.status(500).json({ message: "Failed to generate invoice" });
   }
 };
+
 
 
