@@ -5,6 +5,7 @@ import axiosInstance from "../utils/axiosInstance";
 import { toast, ToastContainer } from "react-toastify";
 import categories from "../data/categories";
 import SearchBar from "../components/SearchBar";
+import ModalBox from "../utils/ModalBox";
 
 export default function ItemsPage() {
   const [items, setItems] = useState([]);
@@ -134,6 +135,7 @@ export default function ItemsPage() {
         {/* Search */}
         <div className="mb-4">
           <SearchBar
+           setQuery={setQuery}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search items..."
@@ -146,12 +148,13 @@ export default function ItemsPage() {
             <thead className="bg-secondary-light dark:bg-secondary-dark text-white text-left">
               <tr>
                 <th className="px-4 py-3 whitespace-nowrap">Name</th>
-                <th className="px-4 py-3 whitespace-nowrap">Model No</th>
+                <th className="px-4 py-3 whitespace-nowrap">HSN No.</th>
                 <th className="px-4 py-3 whitespace-nowrap">Category</th>
                 <th className="px-4 py-3 whitespace-nowrap">Price</th>
                  <th className="px-4 py-3 whitespace-nowrap">GST%</th>
                 <th className="px-4 py-3 whitespace-nowrap">Stock</th>
                 <th className="px-4 py-3 whitespace-nowrap text-center">Actions</th>
+                <th className="px-4 py-3 whitespace-nowrap text-center">Status</th>
               </tr>
             </thead>
             <tbody>
@@ -181,6 +184,22 @@ export default function ItemsPage() {
                         <FaTrash />
                       </button>
                     </td>
+                   <td className="px-4 py-2 text-center">
+  {item.stock === 0 ? (
+    <span className="inline-block px-3 py-1 text-xs font-semibold text-white bg-red-500 rounded-full">
+      Out of Stock
+    </span>
+  ) : item.stock <= 5 ? (
+    <span className="inline-block px-3 py-1 text-xs font-semibold text-white bg-yellow-500 rounded-full">
+      Low Stock
+    </span>
+  ) : (
+    <span className="inline-block px-3 py-1 text-xs font-semibold text-white bg-green-500 rounded-full">
+      Available
+    </span>
+  )}
+</td>
+
                   </tr>
                 ))
               ) : (
@@ -258,7 +277,7 @@ export default function ItemsPage() {
 
       {/* Modals */}
       {(modalType === "add" || modalType === "edit") && (
-        <Modal
+        <ModalBox
           title={modalType === "add" ? "Add Item" : "Edit Item"}
           onClose={closeModal}
         >
@@ -267,10 +286,10 @@ export default function ItemsPage() {
             onSubmit={modalType === "add" ? handleAddItem : handleEditItem}
             onCancel={closeModal}
           />
-        </Modal>
+        </ModalBox>
       )}
       {modalType === "delete" && (
-        <Modal title="Confirm Delete" onClose={closeModal}>
+        <ModalBox title="Confirm Delete" onClose={closeModal}>
           <p className="mb-4">
             Are you sure you want to delete{" "}
             <span className="font-semibold text-danger">
@@ -292,29 +311,13 @@ export default function ItemsPage() {
               Delete
             </button>
           </div>
-        </Modal>
+        </ModalBox>
       )}
     </div>
   );
 }
 
 /* ----------------------------- Modal ----------------------------- */
-function Modal({ title, children, onClose }) {
-  return (
-    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex justify-center items-center z-50 p-4">
-      <div className="bg-neutral-lightCard dark:bg-neutral-darkCard text-neutral-lightText dark:text-neutral-darkText rounded-xl shadow-lg w-full max-w-md sm:max-w-lg p-6 relative">
-        <h2 className="text-lg sm:text-xl font-semibold mb-4">{title}</h2>
-        <button
-          onClick={onClose}
-          className="absolute top-3 right-3 text-secondary hover:text-danger transition"
-        >
-          ✕
-        </button>
-        {children}
-      </div>
-    </div>
-  );
-}
 
 /* ----------------------------- Item Form ----------------------------- */
 function ItemForm({ initialData, onSubmit, onCancel }) {
@@ -350,7 +353,7 @@ function ItemForm({ initialData, onSubmit, onCancel }) {
       <div className="h-[60vh] overflow-auto p-2">
         {[
         { name: "name", placeholder: "Item name", type: "text" },
-        { name: "modelNo", placeholder: "Model No (optional)", type: "text" },
+        { name: "modelNo", placeholder: "HSN No.", type: "text" },
         { name: "price", placeholder: "Price", type: "number" },
          { name: "gst", placeholder: "GST", type: "number" },
         { name: "stock", placeholder: "Stock Quantity", type: "number" },

@@ -2,8 +2,8 @@ import React, { useEffect, useState } from "react";
 import { FaCartPlus, FaTrash, FaEdit } from "react-icons/fa";
 import Select from "react-select";
 import axiosInstance from "../utils/axiosInstance";
-import { toast } from "react-toastify";
-import { useParams } from "react-router-dom";
+import { toast, ToastContainer } from "react-toastify";
+import { useNavigate, useParams } from "react-router-dom";
 
 export default function CreateOrder() {
   const [products, setProducts] = useState([]);
@@ -13,6 +13,7 @@ export default function CreateOrder() {
   const [isLoading, setIsLoading] = useState(false);
   const [editIndex, setEditIndex] = useState(null); // <-- added for editing
   const {id} = useParams(); 
+  const navigate =  useNavigate()
 
   const [customer, setCustomer] = useState({
     name: "",
@@ -126,65 +127,106 @@ const fetchProducts = async () => {
   // Remove item
   // --------------------------
   const handleRemoveItem = (id) =>
-    setOrderItems(orderItems.filter((i) => i.itemId !== id));
+    setOrderItems(orderItems?.filter((i) => i.itemId !== id));
 
   // --------------------------
   // Totals
   // --------------------------
-  const totalAmount = orderItems.reduce((sum, i) => sum + i.totalWithGst, 0);
-  const totalGST = orderItems.reduce((sum, i) => sum + i.gstAmount, 0);
+  const totalAmount = orderItems?.reduce((sum, i) => sum + i.totalWithGst, 0);
+  const totalGST = orderItems?.reduce((sum, i) => sum + i.gstAmount, 0);
 
   // --------------------------
   // Submit Order
   // --------------------------
-  const handleSubmit = async (e) => {
-    e?.preventDefault();
-    if (orderItems.length === 0) return toast.error("Add at least one item");
-    if (!customer.name || !customer.email)
-      return toast.error("Fill customer info");
+ const handleSubmit = async (e) => {
+  e?.preventDefault();
 
-    try {
-      setIsLoading(true);
-      await axiosInstance.post("/orders", {
-        customer,
-        delivery,
-        items: orderItems,
-        totalAmount,
-        totalGST,
-      });
+  if (orderItems?.length === 0) return toast.error("Add at least one item");
+  if (!customer.name || !customer.email)
+    return toast.error("Fill customer info");
+
+  try {
+    setIsLoading(true);
+
+    const payload = {
+      customer,
+      delivery,
+      items: orderItems,
+      totalAmount,
+      totalGST,
+    };
+
+    if (id) {
+      // ✅ Update existing order
+      await axiosInstance.put(`/orders/${id}`, payload);
+      toast.success("Order updated successfully!");
+    } else {
+      // ✅ Create new order
+      await axiosInstance.post("/orders", payload);
       toast.success("Order created successfully!");
-      setOrderItems([]);
-      setCustomer({
-        name: "",
-        email: "",
-        phone: "",
-        gstNumber: "",
-        address1: "",
-        address2: "",
-        city: "",
-        state: "",
-        pincode: "",
-      });
-      setDelivery({
-        address1: "",
-        address2: "",
-        city: "",
-        state: "",
-        pincode: "",
-      });
-      fetchProducts();
-    } catch (err) {
-      toast.error(err.response?.data?.message || "Failed to create order");
-    } finally {
-      setIsLoading(false);
     }
-  };
+
+
+    // ✅ Reset form
+    setOrderItems([]);
+    setCustomer({
+      name: "",
+      email: "",
+      phone: "",
+      gstNumber: "",
+      address1: "",
+      address2: "",
+      city: "",
+      state: "",
+      pincode: "",
+    });
+    setDelivery({
+      address1: "",
+      address2: "",
+      city: "",
+      state: "",
+      pincode: "",
+    });
+
+   
+setTimeout(()=>{
+    navigate("/sales");
+}, 1000)   
+   
+
+  } catch (err) {
+    toast.error(err.response?.data?.message || "Failed to save order");
+  } finally {
+    setIsLoading(false);
+  }
+};
+
+
+
+const getOrderByID = async ()=>{
+
+  try {
+const response  = await axiosInstance.get(`/orders/${id}`);
+setOrderItems(response?.data?.items)
+setCustomer(response?.data?.customer)
+setDelivery(response?.data?.delivery)
+
+  }
+  catch(error){
+    console.log(error)
+  }
+}  
+
+useEffect(()=>{
+getOrderByID();
+}, [id])
 
   return (
     <div className="p-4 sm:p-6 bg-gray-50 min-h-screen text-gray-900">
+        <ToastContainer />
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-4">
-        <h1 className="text-xl sm:text-2xl font-semibold">Create Order</h1>
+        <h1 className="text-xl sm:text-2xl font-semibold">{id ? "Edit" : "Create"} Order</h1>
       </div>
 
       {/* ✅ Customer Info (unchanged) */}
@@ -503,7 +545,13 @@ const fetchProducts = async () => {
                 className="flex items-center gap-2 bg-blue-600 text-white px-5 py-2 rounded-lg hover:bg-blue-700 transition disabled:opacity-60"
               >
                 <FaCartPlus />
-                {isLoading ? "Generating..." : "Generate Order"}
+              {isLoading
+  ? "Generating..."
+  : id
+  ? "Update Order"
+  : "Generate Order"}
+
+
               </button>
             </div>
           </div>

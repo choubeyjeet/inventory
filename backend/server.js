@@ -6,6 +6,8 @@ import authRoutes from "./routes/authRoutes.js";
 import itemRoutes from "./routes/itemRoutes.js";
 import orderRoutes from "./routes/orderRoutes.js";
 import cookieParser from "cookie-parser";
+import "./cron/lowStockCron.js";
+
 
 dotenv.config();
 const app = express();

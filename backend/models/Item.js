@@ -35,6 +35,7 @@ const itemSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    lastLowStockAlertSent: { type: Date, default: null },
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
