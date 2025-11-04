@@ -12,25 +12,25 @@ export const createOrder = async (req, res) => {
   try {
     const { customer, delivery, items, totalAmount, totalGST } = req.body;
 
-    if (!items || items.length === 0)
+    if (!items || items.length === 0) {
       return res.status(400).json({ message: "No items in order" });
-
-    // 🧮 Update stock for each item
-    for (const i of items) {
-      const item = await Item.findById(i.itemId);
-      if (!item)
-        return res.status(404).json({ message: `Item ${i.name} not found` });
-
-      if (item.stock < i.quantity)
-        return res
-          .status(400)
-          .json({ message: `Insufficient stock for ${i.name}` });
-
-      item.stock -= i.quantity;
-      await item.save();
     }
 
-    // ✅ Create order after stock update
+    // 🧮 1️⃣ Validate and update stock concurrently
+    const itemUpdates = await Promise.all(
+      items.map(async (i) => {
+        const item = await Item.findById(i.itemId);
+        if (!item) throw new Error(`Item ${i.name} not found`);
+        if (item.stock < i.quantity)
+          throw new Error(`Insufficient stock for ${i.name}`);
+
+        item.stock -= i.quantity;
+        await item.save();
+        return item;
+      })
+    );
+
+    // ✅ 2️⃣ Create order
     const order = await Order.create({
       customer,
       delivery,
@@ -39,23 +39,39 @@ export const createOrder = async (req, res) => {
       totalGST,
     });
 
-    // 📄 Generate PDF in-memory (no file saved)
-    const htmlContent = await generateInvoiceHTML(order);
-
-    // 📧 Send email with PDF
-    if (customer?.email) {
-      await sendOrderEmail(customer.email, order, htmlContent);
+    // 🧾 3️⃣ Generate invoice HTML (safe async)
+    let htmlContent = "";
+    try {
+      htmlContent = await generateInvoiceHTML(order);
+    } catch (htmlErr) {
+      console.error("⚠️ Failed to generate invoice HTML:", htmlErr.message);
     }
 
+    // 📧 4️⃣ Send email in background (don’t block response)
+    if (customer?.email && htmlContent) {
+      (async () => {
+        try {
+          console.log("📨 Sending email to:", customer.email);
+          await sendOrderEmail(customer.email, order, htmlContent);
+          console.log("✅ Order email sent to", customer.email);
+        } catch (mailErr) {
+          console.error("⚠️ Email sending failed:", mailErr.message);
+        }
+      })();
+    }
+
+    // 🚀 5️⃣ Respond immediately to client
     res.status(201).json({
-      message: "Order created successfully and email sent",
+      message: "Order created successfully",
       orderId: order._id,
+      emailStatus: customer?.email ? "queued" : "no email provided",
     });
   } catch (err) {
     console.error("❌ createOrder error:", err);
     res.status(500).json({ message: err.message });
   }
 };
+
 
 export const generateInvoiceHTML = (order) => {
   const customer = order.customer || {};
@@ -405,8 +421,6 @@ const subject = `Order Confirmation - Invoice ${order._id}`
     html: htmlContent,
   });
 };
-
-
 
 // ✅ Get All Orders
 export const getOrders = async (req, res) => {
@@ -758,5 +772,6 @@ export const downloadAsPDF = async (req, res) => {
     res.status(500).json({ message: "Failed to generate invoice" });
   }
 };
+
 
 
