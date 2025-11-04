@@ -9,6 +9,7 @@ import cookieParser from "cookie-parser";
 import "./cron/lowStockCron.js";
 import dashboardRoutes from "./routes/dashboardRoutes.js";
 import debtRoutes from "./routes/debtRoutes.js";
+import purchaseOrderRoutes from "./routes/purchaseOrderRoutes.js";
 
 dotenv.config();
 const app = express();
@@ -35,6 +36,7 @@ app.use("/api/items", itemRoutes);
 app.use("/api/orders", orderRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/debts", debtRoutes);
+app.use("/api/purchases", purchaseOrderRoutes);
 // Base route
 app.get("/", (req, res) => res.send("API is running..."));
 

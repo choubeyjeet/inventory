@@ -6,6 +6,7 @@ import PublicLayout from "./layouts/PublicLayout";
 import PrivateLayout from "./layouts/PrivateLayout";
 
 import ProtectedRoute from "./utils/ProtectedRoute"; // ✅ new import
+import CreatePurchase from "./pages/CreatePurchase";
 
 
 
@@ -39,6 +40,8 @@ export default function App() {
                 <Route path="/debt" element={<Debt />} />
                 <Route path="/sales" element={<Sales />} />
                 <Route path="/purchase" element={<Purchase />} />
+                 <Route path="/create-purchase" element={<CreatePurchase />} />
+                 <Route path="/create-purchase/:id" element={<CreatePurchase />} />
                 <Route path="/create-order" element={<CreateOrder />} />
                  <Route path="/create-order/:id" element={<CreateOrder />} />
                 
