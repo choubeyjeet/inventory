@@ -53,14 +53,15 @@ export const sendLowStockSummary = async (items) => {
     <p style="font-size:12px;color:gray;">— Kihaan Enterprises Inventory System</p>
   `;
 
-  const recipients = [
+
+  try {
+      const recipients = [
     "choubeyjeet2580@gmail.com",
     "kihaanenterprises@gmail.com",
     "negi.ajay108@gmail.com",
     "negipraveen14@gmail.com",
   ];
 
-  try {
     await transporter.sendMail({
       from: `"Kihaan Enterprises" <${process.env.EMAIL_USER}>`,
       to: recipients,

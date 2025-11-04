@@ -6,6 +6,7 @@ import {
   FaChartPie,
   FaUsers,
   FaFileInvoice,
+  FaCreditCard,
 } from "react-icons/fa";
 import { NavLink } from "react-router-dom";
 
@@ -16,7 +17,8 @@ export default function Sidebar() {
     { name: "Dashboard", icon: <FaTachometerAlt />, path: "/dashboard" },
     { name: "Items", icon: <FaBoxOpen />, path: "/items" },
     { name: "Sales", icon: <FaShoppingCart />, path: "/sales" },
-    // { name: "Invoice", icon: <FaFileInvoice />, path: "/invoice" },
+    { name: "Purchase", icon: <FaFileInvoice />, path: "/purchase" },
+    { name: "Debt", icon: <FaCreditCard />, path: "/debt" },
     { name: "Reports", icon: <FaChartPie />, path: "/reports" },
     { name: "Suppliers", icon: <FaUsers />, path: "/suppliers" },
   ];

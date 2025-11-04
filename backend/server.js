@@ -8,14 +8,14 @@ import orderRoutes from "./routes/orderRoutes.js";
 import cookieParser from "cookie-parser";
 import "./cron/lowStockCron.js";
 import dashboardRoutes from "./routes/dashboardRoutes.js";
-
+import debtRoutes from "./routes/debtRoutes.js";
 
 dotenv.config();
 const app = express();
 
 app.use(
   cors({
-    origin: ["https://inventory-seven-omega.vercel.app"],
+    origin: ["http://localhost:5173", "https://inventory-seven-omega.vercel.app"],
     methods: ["GET", "POST", "PUT", "DELETE"],
     credentials: true,
   })
@@ -34,6 +34,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/items", itemRoutes);
 app.use("/api/orders", orderRoutes);
 app.use("/api/dashboard", dashboardRoutes);
+app.use("/api/debts", debtRoutes);
 // Base route
 app.get("/", (req, res) => res.send("API is running..."));
 

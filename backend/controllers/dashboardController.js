@@ -1,10 +1,15 @@
 import Item from "../models/Item.js";
 import Order from "../models/Order.js";
+import Debt from "../models/Debt.js";
 
 export const getDashboardStats = async (req, res) => {
   try {
     const totalProducts = await Item.countDocuments();
     const totalOrders = await Order.countDocuments();
+    const totalDebt = await Debt.find({ status: "unpaid" }, "amount");
+
+   const totalDebtAmount = totalDebt.reduce((sum, debt) => sum + debt.amount, 0);
+
 
     const orders = await Order.find({}, "totalAmount");
     const totalRevenue = orders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
@@ -20,6 +25,7 @@ export const getDashboardStats = async (req, res) => {
 
     res.json({
       totalProducts,
+      totalDebtAmount,
       totalOrders,
       totalRevenue,
       lowStockItems,

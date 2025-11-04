@@ -8,6 +8,7 @@ import {
   FaShoppingCart,
   FaExclamationTriangle,
   FaClipboardList,
+  FaRegCreditCard,
 } from "react-icons/fa";
 import {
   LineChart,
@@ -110,9 +111,9 @@ fetchCategorySales()
       color: "bg-green-500",
     },
     {
-      label: "Customers",
-      value: stats.totalCustomers || 0,
-      icon: <FaUsers />,
+      label: "Total Debt",
+      value: `₹${stats.totalDebtAmount || 0}`,
+      icon: <FaRegCreditCard />,
       color: "bg-yellow-500",
     },
     {

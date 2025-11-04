@@ -1,14 +1,13 @@
 import React, { useState, Suspense } from "react";
 import { Routes, Route } from "react-router-dom";
-import { Dashboard, Login } from "./lazyComponents";
-import Items from "./pages/Items";
+import { Dashboard, Login, Purchase, CreateOrder, Sales, Signup, Items, Debt } from "./lazyComponents";
 import { ToastContainer } from "react-toastify";
 import PublicLayout from "./layouts/PublicLayout";
 import PrivateLayout from "./layouts/PrivateLayout";
-import Signup from "./pages/Signup";
+
 import ProtectedRoute from "./utils/ProtectedRoute"; // ✅ new import
-import Sales from "./pages/Sales";
-import CreateOrder from "./pages/CreateOrder";
+
+
 
 export default function App() {
   const [darkMode, setDarkMode] = useState(false);
@@ -37,7 +36,9 @@ export default function App() {
               >
                 <Route path="/dashboard" element={<Dashboard />} />
                 <Route path="/items" element={<Items />} />
+                <Route path="/debt" element={<Debt />} />
                 <Route path="/sales" element={<Sales />} />
+                <Route path="/purchase" element={<Purchase />} />
                 <Route path="/create-order" element={<CreateOrder />} />
                  <Route path="/create-order/:id" element={<CreateOrder />} />
                 
