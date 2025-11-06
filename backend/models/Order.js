@@ -1,7 +1,31 @@
 import mongoose from "mongoose";
+const paymentHistorySchema = new mongoose.Schema(
+  {
+    amount: {
+      type: Number,
+      required: true,
+      min: 0,
+    },
+    date: {
+      type: Date,
+      required: true,
+    },
+    method: {
+      type: String,
+      default: "unknown",
+    },
+    note: String,
+  },
+  { _id: false }
+);
 
 const orderSchema = new mongoose.Schema(
   {
+    invoiceId: {
+      type: String,
+      unique: true,
+      index: true,
+    },
     customer: {
       name: String,
       email: String,
@@ -53,8 +77,16 @@ const orderSchema = new mongoose.Schema(
         min: 0,
       },
     },
+      paymentHistory: {
+      type: [paymentHistorySchema],
+      default: [],
+    },
+  
   },
+  
   { timestamps: true }
 );
+
+
 
 export default mongoose.model("Order", orderSchema);

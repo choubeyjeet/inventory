@@ -14,6 +14,10 @@ export default function CreateOrder() {
   const [editIndex, setEditIndex] = useState(null); 
   const [paymentStatus, setPaymentStatus] = useState("fully"); 
   const [paymentAmountPaid, setPaymentAmountPaid] = useState(0); 
+  const [paymentDate, setPaymentDate] = useState(null);
+  const [paymentHistory, setPaymentHistory] = useState([]);
+  const [existingPaymentHistory, setExistingPaymentHistory] = useState([]);
+  
   const {id} = useParams(); 
   const navigate =  useNavigate()
 
@@ -158,8 +162,20 @@ const handleSubmit = async (e) => {
     }
   }
 
+  if (!paymentDate) {
+    return toast.error("Please select a payment date");
+  }
+
   const amountPaid = paymentStatus === "fully" ? totalAmount : Number(paymentAmountPaid);
   const remainingBalance = totalAmount - amountPaid;
+
+  // Build payment history entry
+  const newPaymentHistoryEntry = {
+    amount: amountPaid,
+    date: paymentDate,
+    method: "online", // example value; can be dynamic if needed
+    note: paymentStatus === "fully" ? "Full payment" : "Partial payment",
+  };
 
   try {
     setIsLoading(true);
@@ -174,7 +190,11 @@ const handleSubmit = async (e) => {
         status: paymentStatus === "fully" ? "paid" : "partial",
         amountPaid,
         remainingBalance,
+        date: paymentDate,
       },
+      paymentHistory: id
+        ? [...(existingPaymentHistory || []), newPaymentHistoryEntry]
+        : [newPaymentHistoryEntry],
     };
 
     if (id) {
@@ -185,9 +205,10 @@ const handleSubmit = async (e) => {
       // ✅ Create new order
       await axiosInstance.post("/orders", payload);
       toast.success("Order created successfully!");
+      setExistingPaymentHistory([]); // ✅ Reset history only for new order form
     }
 
-    // ✅ Reset form
+    // ✅ Reset form (keeps history intact if editing)
     setOrderItems([]);
     setCustomer({
       name: "",
@@ -209,6 +230,7 @@ const handleSubmit = async (e) => {
     });
     setPaymentStatus("fully");
     setPaymentAmountPaid(0);
+    setPaymentDate("");
 
     setTimeout(() => {
       navigate("/sales");
@@ -219,6 +241,7 @@ const handleSubmit = async (e) => {
     setIsLoading(false);
   }
 };
+
 
 
 
@@ -236,19 +259,33 @@ const getOrderByID = async () => {
 
     // Handle payment state
     if (data.payment) {
-      
       setPaymentStatus(data.payment.status === "paid" ? "fully" : "partial");
       setPaymentAmountPaid(data.payment.amountPaid || 0);
+      setPaymentDate(
+        data.payment.date
+          ? new Date(data.payment.date).toISOString().split("T")[0]
+          : ""
+      );
     } else {
       // Default: assume fully paid if no payment field is present
       setPaymentStatus("fully");
       setPaymentAmountPaid(data.totalAmount || 0);
+      setPaymentDate(""); // no date
+    }
+
+    // Handle payment history (if applicable)
+    if (data.paymentHistory && Array.isArray(data.paymentHistory)) {
+      setPaymentHistory(data.paymentHistory);
+      setExistingPaymentHistory(data.paymentHistory)
+    } else {
+      setPaymentHistory([]); // no history
     }
   } catch (error) {
     console.error("Error fetching order:", error);
     toast.error("Failed to fetch order details");
   }
 };
+
 
 
 useEffect(()=>{
@@ -290,6 +327,7 @@ if(id){
             onChange={(e) => setCustomer({ ...customer, phone: e.target.value })}
             className="border p-2 rounded"
           />
+           
         </div>
 
         <div className="grid sm:grid-cols-3 gap-4 mb-4">
@@ -589,6 +627,7 @@ if(id){
         onChange={() => {
           setPaymentStatus("fully");
           setPaymentAmountPaid(totalAmount);
+          setPaymentDate(new Date().toISOString().split("T")[0]);
         }}
         className="w-4 h-4"
       />
@@ -604,6 +643,7 @@ if(id){
         onChange={() => {
           setPaymentStatus("partial");
           setPaymentAmountPaid("");
+          setPaymentDate("");
         }}
         className="w-4 h-4"
       />
@@ -612,14 +652,16 @@ if(id){
   </div>
 
   {/* Payment fields */}
-  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
     {/* Amount Paid */}
     <div>
       <label className="block mb-1 font-medium">Amount Paid:</label>
       <input
         type="number"
         readOnly={paymentStatus === "fully"}
-        value={paymentStatus === "fully" ? totalAmount.toFixed(2) : paymentAmountPaid}
+        value={
+          paymentStatus === "fully" ? totalAmount.toFixed(2) : paymentAmountPaid
+        }
         onChange={(e) => setPaymentAmountPaid(e.target.value)}
         className="border rounded h-[40px] p-2 w-full"
         placeholder="Enter amount paid"
@@ -638,8 +680,52 @@ if(id){
         />
       </div>
     )}
+
+    {/* Payment Date */}
+    <div>
+      <label className="block mb-1 font-medium">Payment Date:</label>
+      <input
+        type="date"
+        value={paymentDate}
+        onChange={(e) => setPaymentDate(e.target.value)}
+        className="border rounded h-[40px] p-2 w-full"
+      />
+    </div>
   </div>
+
+  {/* 🔄 Payment History Section */}
+  {paymentHistory?.length > 0 && (
+    <div className="mt-6">
+      <h3 className="text-lg font-semibold mb-3">Payment History</h3>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm border border-gray-300 rounded-md overflow-hidden">
+          <thead className="bg-gray-100 dark:bg-gray-800">
+            <tr>
+              <th className="px-4 py-2 text-left">Date</th>
+              <th className="px-4 py-2 text-left">Amount</th>
+              <th className="px-4 py-2 text-left">Method</th>
+              <th className="px-4 py-2 text-left">Note</th>
+            </tr>
+          </thead>
+          <tbody>
+            {paymentHistory.map((payment, index) => (
+              <tr
+                key={index}
+                className="even:bg-gray-50 dark:even:bg-gray-700 odd:bg-white dark:odd:bg-gray-800"
+              >
+                <td className="px-4 py-2">{new Date(payment.date).toLocaleDateString()}</td>
+                <td className="px-4 py-2">₹{payment.amount.toFixed(2)}</td>
+                <td className="px-4 py-2">{payment.method || "N/A"}</td>
+                <td className="px-4 py-2">{payment.note || "-"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )}
 </div>
+
 
 
   <button

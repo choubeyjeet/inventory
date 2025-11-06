@@ -32,7 +32,7 @@ export const createOrder = async (req, res) => {
 
     // 🧾 2️⃣ Validate payment info
     if (payment?.status === "partial") {
-      if (payment.amountPaid == null || payment.amountPaid <= 0) {
+      if (!payment.amountPaid || payment.amountPaid <= 0) {
         return res.status(400).json({ message: "Invalid paid amount" });
       }
       if (payment.amountPaid > totalAmount) {
@@ -40,9 +40,23 @@ export const createOrder = async (req, res) => {
           message: "Paid amount cannot exceed total amount",
         });
       }
+      if (!payment.date) {
+        return res.status(400).json({ message: "Payment date is required" });
+      }
     }
 
-    // ✅ 3️⃣ Create order with payment data
+    // New payment history entry
+    const paymentHistoryEntry = {
+      amount: payment?.amountPaid || totalAmount,
+      date: payment?.date || new Date(), // default to now if fully paid
+      method: payment?.method || "unknown", // optional field
+      note:
+        payment?.status === "partial"
+          ? "Partial payment during order creation"
+          : "Full payment during order creation",
+    };
+
+    // ✅ 3️⃣ Create order with payment data and history
     const order = await Order.create({
       customer,
       delivery,
@@ -56,7 +70,9 @@ export const createOrder = async (req, res) => {
           payment?.status === "partial"
             ? totalAmount - payment.amountPaid
             : 0,
+        date: payment?.date || new Date(),
       },
+      paymentHistory: [paymentHistoryEntry],
     });
 
     // 🧾 4️⃣ Generate invoice HTML
@@ -84,6 +100,7 @@ export const createOrder = async (req, res) => {
     res.status(201).json({
       message: "Order created successfully",
       orderId: order._id,
+      invoiceId: order.invoiceId,
       emailStatus:
         customer?.email && htmlContent ? "queued" : "no email or invoice",
     });
@@ -92,6 +109,7 @@ export const createOrder = async (req, res) => {
     res.status(500).json({ message: err.message });
   }
 };
+
 
 
 export const generateInvoiceHTML = (order) => {
@@ -554,7 +572,7 @@ export const deleteOrder = async (req, res) => {
 export const updateOrder = async (req, res) => {
   try {
     const { id } = req.params;
-    const { customer, delivery, items, totalAmount, totalGST, payment } = req.body;
+    const { customer, delivery, items, totalAmount, totalGST, payment, paymentHistory } = req.body;
 
     const order = await Order.findById(id);
     if (!order) return res.status(404).json({ message: "Order not found" });
@@ -574,24 +592,22 @@ export const updateOrder = async (req, res) => {
       const diff = i.quantity - prevQty;
 
       if (diff > 0) {
-        // Ordered more → decrease stock
         if (item.stock < diff)
           return res.status(400).json({ message: `Insufficient stock for ${i.name}` });
         item.stock -= diff;
       } else if (diff < 0) {
-        // Reduced quantity → restore stock
         item.stock += Math.abs(diff);
       }
 
       await item.save();
     }
 
-    // 🧹 Handle items that were removed
+    // 🧹 Handle items removed from the updated order
     for (const oldItem of order.items) {
       if (!items.find((i) => i.itemId === oldItem.itemId.toString())) {
         const item = await Item.findById(oldItem.itemId);
         if (item) {
-          item.stock += oldItem.quantity; // restore removed item stock
+          item.stock += oldItem.quantity;
           await item.save();
         }
       }
@@ -601,38 +617,40 @@ export const updateOrder = async (req, res) => {
     order.customer = customer || order.customer;
     order.delivery = delivery || order.delivery;
     order.items = items || order.items;
-    order.totalAmount = totalAmount || order.totalAmount;
-    order.totalGST = totalGST || order.totalGST;
+    order.totalAmount = totalAmount ?? order.totalAmount;
+    order.totalGST = totalGST ?? order.totalGST;
 
-    // 🧾 Update Payment Info (if provided)
+    // 🧾 Update Payment Info & Entire Payment History
     if (payment) {
-      if (payment.status === "partial") {
-        if (payment.amountPaid == null || payment.amountPaid <= 0) {
-          return res.status(400).json({ message: "Paid amount must be greater than 0" });
-        }
-        if (payment.amountPaid > totalAmount) {
-          return res.status(400).json({ message: "Paid amount cannot exceed total amount" });
-        }
+      if (!payment.date) {
+        return res.status(400).json({ message: "Payment date is required" });
+      }
+
+      if (payment.amountPaid > totalAmount) {
+        return res.status(400).json({ message: "Paid amount cannot exceed total amount" });
       }
 
       order.payment = {
-        status: payment.status || order.payment?.status || "paid",
-        amountPaid: payment.amountPaid ?? order.payment?.amountPaid ?? totalAmount,
-        remainingBalance:
-          payment.status === "partial"
-            ? totalAmount - payment.amountPaid
-            : 0,
+        status: payment.status || "paid",
+        amountPaid: payment.amountPaid || 0,
+        remainingBalance: totalAmount - (payment.amountPaid || 0),
+        date: payment.date,
       };
+    }
+
+    if (Array.isArray(paymentHistory)) {
+      order.paymentHistory = paymentHistory; // 🆕 Replace entire history
     }
 
     await order.save();
 
     res.json({ message: "Order updated successfully", orderId: order._id });
   } catch (err) {
-    console.error(err);
+    console.error("❌ updateOrder error:", err);
     res.status(500).json({ message: err.message });
   }
 };
+
 
 
 
