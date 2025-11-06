@@ -11,7 +11,9 @@ export default function CreateOrder() {
   const [quantity, setQuantity] = useState(1);
   const [orderItems, setOrderItems] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [editIndex, setEditIndex] = useState(null); // <-- added for editing
+  const [editIndex, setEditIndex] = useState(null); 
+  const [paymentStatus, setPaymentStatus] = useState("fully"); 
+  const [paymentAmountPaid, setPaymentAmountPaid] = useState(0); 
   const {id} = useParams(); 
   const navigate =  useNavigate()
 
@@ -138,12 +140,26 @@ const fetchProducts = async () => {
   // --------------------------
   // Submit Order
   // --------------------------
- const handleSubmit = async (e) => {
+const handleSubmit = async (e) => {
   e?.preventDefault();
 
   if (orderItems?.length === 0) return toast.error("Add at least one item");
   if (!customer.name || !customer.email)
     return toast.error("Fill customer info");
+
+  // ✅ Payment validations
+  if (paymentStatus === "partial") {
+    if (!paymentAmountPaid || Number(paymentAmountPaid) <= 0) {
+      return toast.error("Enter a valid paid amount");
+    }
+
+    if (Number(paymentAmountPaid) > totalAmount) {
+      return toast.error("Paid amount cannot exceed total amount");
+    }
+  }
+
+  const amountPaid = paymentStatus === "fully" ? totalAmount : Number(paymentAmountPaid);
+  const remainingBalance = totalAmount - amountPaid;
 
   try {
     setIsLoading(true);
@@ -154,6 +170,11 @@ const fetchProducts = async () => {
       items: orderItems,
       totalAmount,
       totalGST,
+      payment: {
+        status: paymentStatus === "fully" ? "paid" : "partial",
+        amountPaid,
+        remainingBalance,
+      },
     };
 
     if (id) {
@@ -165,7 +186,6 @@ const fetchProducts = async () => {
       await axiosInstance.post("/orders", payload);
       toast.success("Order created successfully!");
     }
-
 
     // ✅ Reset form
     setOrderItems([]);
@@ -187,13 +207,12 @@ const fetchProducts = async () => {
       state: "",
       pincode: "",
     });
+    setPaymentStatus("fully");
+    setPaymentAmountPaid(0);
 
-   
-setTimeout(()=>{
-    navigate("/sales");
-}, 1000)   
-   
-
+    setTimeout(() => {
+      navigate("/sales");
+    }, 1000);
   } catch (err) {
     toast.error(err.response?.data?.message || "Failed to save order");
   } finally {
@@ -203,19 +222,34 @@ setTimeout(()=>{
 
 
 
-const getOrderByID = async ()=>{
-
+const getOrderByID = async () => {
   try {
-const response  = await axiosInstance.get(`/orders/${id}`);
-setOrderItems(response?.data?.items)
-setCustomer(response?.data?.customer)
-setDelivery(response?.data?.delivery)
+    const response = await axiosInstance.get(`/orders/${id}`);
+    const data = response?.data;
 
+    if (!data) throw new Error("Order data not found");
+
+    // Populate basic fields
+    setOrderItems(data.items || []);
+    setCustomer(data.customer || {});
+    setDelivery(data.delivery || {});
+
+    // Handle payment state
+    if (data.payment) {
+      
+      setPaymentStatus(data.payment.status === "paid" ? "fully" : "partial");
+      setPaymentAmountPaid(data.payment.amountPaid || 0);
+    } else {
+      // Default: assume fully paid if no payment field is present
+      setPaymentStatus("fully");
+      setPaymentAmountPaid(data.totalAmount || 0);
+    }
+  } catch (error) {
+    console.error("Error fetching order:", error);
+    toast.error("Failed to fetch order details");
   }
-  catch(error){
-    console.log(error)
-  }
-}  
+};
+
 
 useEffect(()=>{
 if(id){
@@ -540,22 +574,84 @@ if(id){
             </div>
 
             {/* ✅ Generate Order Button */}
-            <div className="flex justify-end mt-6">
-              <button
-                onClick={handleSubmit}
-                disabled={isLoading}
-                className="flex items-center gap-2 bg-blue-600 text-white px-5 py-2 rounded-lg hover:bg-blue-700 transition disabled:opacity-60"
-              >
-                <FaCartPlus />
-              {isLoading
-  ? "Generating..."
-  : id
-  ? "Update Order"
-  : "Generate Order"}
+           <div className="flex justify-between mt-6 items-center">
+<div className="space-y-4">
+  <p className="font-medium">Payment Status:</p>
+
+  {/* Radio buttons */}
+  <div className="flex items-center gap-6">
+    <label className="flex items-center gap-2 cursor-pointer">
+      <input
+        type="radio"
+        name="payment"
+        value="fully_paid"
+        checked={paymentStatus === "fully"}
+        onChange={() => {
+          setPaymentStatus("fully");
+          setPaymentAmountPaid(totalAmount);
+        }}
+        className="w-4 h-4"
+      />
+      <span>Fully Paid</span>
+    </label>
+
+    <label className="flex items-center gap-2 cursor-pointer">
+      <input
+        type="radio"
+        name="payment"
+        value="partially_paid"
+        checked={paymentStatus === "partial"}
+        onChange={() => {
+          setPaymentStatus("partial");
+          setPaymentAmountPaid("");
+        }}
+        className="w-4 h-4"
+      />
+      <span>Partially Paid</span>
+    </label>
+  </div>
+
+  {/* Payment fields */}
+  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+    {/* Amount Paid */}
+    <div>
+      <label className="block mb-1 font-medium">Amount Paid:</label>
+      <input
+        type="number"
+        readOnly={paymentStatus === "fully"}
+        value={paymentStatus === "fully" ? totalAmount.toFixed(2) : paymentAmountPaid}
+        onChange={(e) => setPaymentAmountPaid(e.target.value)}
+        className="border rounded h-[40px] p-2 w-full"
+        placeholder="Enter amount paid"
+      />
+    </div>
+
+    {/* Remaining Balance */}
+    {paymentStatus === "partial" && (
+      <div>
+        <label className="block mb-1 font-medium">Remaining Balance:</label>
+        <input
+          type="text"
+          value={(totalAmount - Number(paymentAmountPaid || 0)).toFixed(2)}
+          readOnly
+          className="border rounded h-[40px] p-2 w-full bg-gray-100"
+        />
+      </div>
+    )}
+  </div>
+</div>
 
 
-              </button>
-            </div>
+  <button
+    onClick={handleSubmit}
+    disabled={isLoading}
+    className="flex items-center gap-2 bg-blue-600 text-white px-5 py-2 rounded-lg hover:bg-blue-700 transition disabled:opacity-60"
+  >
+    <FaCartPlus />
+    {isLoading ? "Generating..." : id ? "Update Order" : "Generate Order"}
+  </button>
+</div>
+
           </div>
         </div>
       )}

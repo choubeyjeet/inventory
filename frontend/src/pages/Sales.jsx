@@ -17,7 +17,7 @@ export default function Sales() {
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [fromDate, setFromDate] = useState(null);
   const [toDate, setToDate] = useState(null);
-
+const [paymentFilter, setPaymentFilter] = useState("");
   // Pagination
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -33,30 +33,32 @@ export default function Sales() {
   }, [query]);
 
   // Fetch Orders
-  const fetchOrders = async () => {
-    try {
-      setLoading(true);
-      const params = new URLSearchParams({
-        page,
-        limit,
-        search: debouncedQuery || "",
-      });
-      if (fromDate) params.append("fromDate", fromDate);
-      if (toDate) params.append("toDate", toDate);
+ const fetchOrders = async () => {
+  try {
+    setLoading(true);
+    const params = new URLSearchParams({
+      page,
+      limit,
+      search: debouncedQuery || "",
+    });
+    if (fromDate) params.append("fromDate", fromDate);
+    if (toDate) params.append("toDate", toDate);
+    if (paymentFilter) params.append("payment", paymentFilter); // Add this line ✅
 
-      const res = await axiosInstance.get(`/orders?${params.toString()}`);
-      setOrders(res?.data?.orders || []);
-      setTotalPages(res?.data?.totalPages || 1);
-    } catch (err) {
-      toast.error("Failed to load orders");
-    } finally {
-      setLoading(false);
-    }
-  };
+    const res = await axiosInstance.get(`/orders?${params.toString()}`);
+    setOrders(res?.data?.orders || []);
+    setTotalPages(res?.data?.totalPages || 1);
+  } catch (err) {
+    toast.error("Failed to load orders");
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   useEffect(() => {
     fetchOrders();
-  }, [debouncedQuery, page]);
+  }, [debouncedQuery, page, paymentFilter]);
 
   // Delete an Order
   const handleDeleteItem = async () => {
@@ -166,6 +168,18 @@ export default function Sales() {
             Clear
           </button>
         </div>
+<div className="flex items-center gap-2">
+  <label className="font-medium">Payment:</label>
+  <select
+    value={paymentFilter}
+    onChange={(e) => setPaymentFilter(e.target.value)}
+    className="border dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-2 py-1 text-sm focus:ring-2 focus:ring-orange-400 outline-none"
+  >
+    <option value="">All</option>
+    <option value="paid">Paid</option>
+    <option value="partial">Partial</option>
+  </select>
+</div>
 
         {/* Search */}
         <SearchBar
@@ -208,6 +222,21 @@ export default function Sales() {
                       Total Amount:{" "}
                       <span className="font-semibold text-blue-500 dark:text-blue-400">
                         ₹{order?.totalAmount.toFixed(2)}
+                      </span>
+                    </p>
+                      <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                      Payment Status:{" "}
+                      <span className="font-semibold text-blue-500 dark:text-blue-400">
+  {order?.payment?.status
+    ? order.payment.status.charAt(0).toUpperCase() + order.payment.status.slice(1)
+    : ""}
+</span>
+
+                    </p>
+                      <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                      Paid Amount:{" "}
+                      <span className="font-semibold text-blue-500 dark:text-blue-400">
+                        ₹{order?.payment?.amountPaid.toFixed(2)}
                       </span>
                     </p>
                     <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">

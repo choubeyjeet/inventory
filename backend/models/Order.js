@@ -34,6 +34,25 @@ const orderSchema = new mongoose.Schema(
     ],
     totalGST: Number,
     totalAmount: Number,
+
+    // 🆕 Payment Details
+    payment: {
+      status: {
+        type: String,
+        enum: ["paid", "partial"],
+        default: "paid",
+      },
+      amountPaid: {
+        type: Number,
+        default: 0,
+        min: 0,
+      },
+      remainingBalance: {
+        type: Number,
+        default: 0,
+        min: 0,
+      },
+    },
   },
   { timestamps: true }
 );
